@@ -1,26 +1,19 @@
-from flask import Flask, render_template, request
+import gradio as gr
 import tensorflow as tf
 import numpy as np
-import os
-import json
 from PIL import Image
+import json
 
-app = Flask(__name__)
-
-# Load trained model
-
+# Load model safely
 model = tf.keras.models.load_model("food_model.h5", compile=False)
 
-# Load class names
+# Load classes
 with open("classes.json", "r") as f:
     class_indices = json.load(f)
 
-# Reverse mapping
 classes = {v: k for k, v in class_indices.items()}
 
-print("Classes Loaded:", classes)
-
-# Prices
+# Price list
 prices = {
     "Chaat": 30,
     "Maggie": 30,
@@ -29,72 +22,31 @@ prices = {
     "Samosa": 20
 }
 
-UPLOAD_FOLDER = "uploads"
+# Prediction function
+def predict(image):
+    if image is None:
+        return "No image uploaded"
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+    image = image.convert("RGB")
+    image = image.resize((128, 128))
+    image = np.array(image) / 255.0
+    image = image.reshape(1, 128, 128, 3)
 
+    pred = model.predict(image)
+    idx = np.argmax(pred)
 
-# Home page
-@app.route("/")
-def home():
-    return render_template("index.html")
+    food = classes.get(idx, "Unknown")
+    price = prices.get(food, 0)
 
+    return f"{food} → ₹{price}"
 
-# Prediction route
-@app.route("/predict", methods=["POST"])
-def predict():
+# UI
+demo = gr.Interface(
+    fn=predict,
+    inputs=gr.Image(type="pil"),
+    outputs="text",
+    title="Touchless Canteen AI",
+    description="Upload food image to detect item and price"
+)
 
-    files = request.files.getlist("file")
-
-    detected_items = []
-    total_bill = 0
-
-    for file in files:
-
-        if file.filename == "":
-            continue
-
-        path = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(path)
-
-        print("\nProcessing:", file.filename)
-
-        # Load image
-        img = Image.open(path).convert("RGB")
-        img = img.resize((128, 128))
-        img = np.array(img) / 255.0
-        img = img.reshape(1, 128, 128, 3)
-
-        # Predict
-        prediction = model.predict(img)
-
-        print("Prediction:", prediction)
-
-        class_index = np.argmax(prediction)
-        print("Class Index:", class_index)
-
-        food_name = classes[class_index]
-        print("Food Name:", food_name)
-
-        price = prices.get(food_name, 0)
-        print("Price:", price)
-
-        total_bill += price
-
-        detected_items.append({
-            "name": food_name,
-            "price": price
-        })
-
-    print("Total Bill:", total_bill)
-
-    return render_template(
-        "index.html",
-        items=detected_items,
-        total=total_bill
-    )
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+demo.launch()
