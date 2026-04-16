@@ -60,4 +60,4 @@ model.fit(
 # Save model
 model.save("food_model.keras")
 
-print("\nModel trained and saved as food_model.h5")
+print("\nModel trained and saved as food_model.keras")

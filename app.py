@@ -8,6 +8,7 @@ from PIL import Image
 app = Flask(__name__)
 
 # Load trained model
+
 model = tf.keras.models.load_model("food_model.h5", compile=False)
 
 # Load class names
